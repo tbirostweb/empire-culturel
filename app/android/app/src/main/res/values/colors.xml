@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palette native alignée sur app/src/style.css (design system,
+         thème clair "atelier/forge"). -->
+    <color name="colorPrimary">#FBF6ED</color>
+    <color name="colorPrimaryDark">#F3EDE1</color>
+    <color name="colorAccent">#D6431F</color>
+</resources>

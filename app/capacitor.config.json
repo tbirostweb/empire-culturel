@@ -1,0 +1,11 @@
+{
+  "appId": "fr.birost.pasjeu",
+  "appName": "jeu-pas",
+  "webDir": "dist",
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "LIGHT"
+    }
+  }
+}

@@ -1,0 +1,483 @@
+@import "tailwindcss";
+
+/*
+ * Design system — identité "PLAN D'ARCHITECTE" (choisie explicitement par
+ * l'utilisateur parmi 4 directions proposées, après un retour : ni la police
+ * ni les couleurs de l'identité "carnet de voyage" claire ne lui plaisaient).
+ *
+ * Le parti pris : l'écran est un RELEVÉ D'ARCHITECTE — fond bleu de plan,
+ * grille technique fine en filigrane, cotes et crochets d'angle, titres en
+ * grotesque condensé (cartouche de plan), nombres en chasse fixe. Un monument
+ * n'est plus une photo collée mais une pièce tracée sur un calque. THÈME
+ * SOMBRE : c'est le premier de ce projet, tous les contrastes sont donc
+ * recalculés pour du texte CLAIR sur fond bleu foncé (l'inverse du papier).
+ *
+ * Les noms de tokens (--color-fond/surface/ink/...) sont conservés tels
+ * quels — seules leurs VALEURS changent — afin de ne pas imposer un rename
+ * de toutes les classes Tailwind littérales dans les vues.
+ *
+ * TOUTES les valeurs de texte/couleur sont vérifiées à >= 4.5:1 (AA petit
+ * texte) sur les trois fonds bleus via la formule de luminance relative WCAG.
+ * Méthode sur fond sombre : garder la teinte, saturation haute, puis MONTER
+ * la luminosité jusqu'au seuil (jamais l'inverse — cf. CLAUDE.md).
+ */
+@theme {
+  --font-sans: "Barlow", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Bleus de plan. `fond` = calque le plus foncé, `surface` = panneau posé
+     dessus, `surface-soft` = zone relevée / active. Le `liseret` est un bleu
+     de trait franc pour que chaque bloc ait un bord net comme un cadre de
+     plan. */
+  --color-fond: #0d2440;
+  --color-surface: #123157;
+  --color-surface-soft: #1b3e6b;
+  --color-ink: #eaf2fb;
+  --color-ink-soft: #9fb6d4;
+  --color-ink-faint: #9aacc5;
+  --color-liseret: #2c5590;
+
+  /* Rareté (7 paliers, cf. data/rarity.js#RARITY_COLORS). Seule
+     `--color-legendaire` reste un token `@theme` (classe littérale
+     `text-legendaire`/`bg-legendaire`) ; les autres sont en constante JS
+     (piège Tailwind tree-shaking documenté dans CLAUDE.md). */
+  --color-legendaire: #db9f12;
+
+  /* Accent d'action = CYAN TRAÇANT, la couleur d'un trait de cotation lumineux
+     sur le bleu de plan. Réservé aux CTA et aux tracés actifs. `--color-encre`
+     (bleu clair) est l'accent secondaire (liens, valeurs), jamais un bouton. */
+  --color-accent: #35d6c4;
+  --color-accent-deep: #22b3a3;
+  --color-accent-soft: rgba(53, 214, 196, 0.14);
+  --color-encre: #69adff;
+  --color-or: #e8b44a;
+  --color-succes: #4fd6a0;
+  --color-danger: #ff8493;
+
+  /* Angles vifs : un plan technique n'a pas de coins arrondis. Valeurs à
+     0-3px — on garde un radius minuscule (1-2px) sur les gros blocs pour que
+     l'anti-aliasing ne bave pas, mais l'intention est l'angle droit. */
+  --radius-sm: 0px;
+  --radius-md: 1px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 3px;
+  --radius-full: 9999px;
+  --radius-card: 1px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  background: var(--color-fond);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Grille de plan : deux trames de lignes fines, une fine (24px) et une plus
+     marquée tous les 5 carreaux (120px), en dégradés CSS purs — jamais une
+     image (aucune ressource externe, CSP nginx). Fixée pour que la grille ne
+     défile pas avec le contenu, comme un calque posé sous l'interface. */
+  background-image:
+    linear-gradient(rgba(90, 150, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 150, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(90, 150, 220, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 150, 220, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  background-attachment: fixed;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+/* Sur-titre de section : libellé technique en chasse fixe, très tracké, avec
+   un trait de cotation devant (posé par les vues via la structure, ou seul).
+   C'est le "titre de calque" du plan. */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-ink-soft);
+}
+
+/* Chiffres tabulaires en chasse fixe : sur un plan, TOUS les nombres sont des
+   cotes, donc en mono. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.typewriter {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+@layer components {
+  .app-shell {
+    background: var(--color-fond);
+  }
+
+  .input {
+    @apply w-full px-3 py-2;
+    border-radius: 1px;
+    border: 1px solid var(--color-liseret);
+    background: color-mix(in srgb, var(--color-fond) 60%, var(--color-surface));
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+  }
+  .input::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-soft);
+  }
+
+  /* CTA : aplat cyan à texte sombre (le cyan est lumineux, du texte blanc
+     dessus ne passerait pas). Angle droit, pas d'ombre douce — un bouton de
+     plan est un rectangle net. Le "soulignement" bas simule l'épaisseur d'un
+     trait tracé. */
+  .btn-primary {
+    border-radius: 1px;
+    @apply px-5 py-3 text-sm font-bold transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100;
+    background-color: var(--color-accent);
+    color: #06262b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 0 var(--color-accent-deep);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-accent-deep);
+  }
+  .btn-primary:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--color-accent-deep);
+  }
+
+  .btn-danger {
+    border-radius: 1px;
+    @apply border px-5 py-3 text-sm font-bold transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100;
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  }
+
+  .btn-ghost {
+    border-radius: 1px;
+    @apply border px-5 py-3 text-sm font-bold transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100;
+    border-color: var(--color-liseret);
+    background: transparent;
+    color: var(--color-ink);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--color-surface-soft);
+    border-color: var(--color-accent);
+  }
+
+  /* Panneau = cadre de plan. Bord net, fond légèrement plus clair que le
+     calque, et des CROCHETS D'ANGLE en `::before`/`::after` façon repère de
+     cadrage — la signature visuelle de cette DA. */
+  .panel {
+    position: relative;
+    border-radius: 1px;
+    @apply border;
+    background: var(--color-surface);
+    border-color: var(--color-liseret);
+  }
+  .panel::before,
+  .panel::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid var(--color-accent);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  .panel::before {
+    top: -1px;
+    left: -1px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .panel::after {
+    bottom: -1px;
+    right: -1px;
+    border-left: 0;
+    border-top: 0;
+  }
+
+  /* Carte héros (Farm/Profil) : cartouche de plan — bord accentué en haut,
+     fond de grille propre. */
+  .hero-card {
+    position: relative;
+    border-radius: 1px;
+    @apply overflow-hidden p-4 text-ink;
+    background: var(--color-surface);
+    border: 1px solid var(--color-liseret);
+    border-top: 2px solid var(--color-accent);
+  }
+  .hero-card-glow {
+    display: none;
+  }
+
+  .rule-double {
+    border: 0;
+    border-top: 1px solid var(--color-liseret);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-liseret) 45%, transparent);
+    height: 3px;
+  }
+
+  /* Barre de cotation (XP, jauges) : trait plein dans un cadre fin. */
+  .progress-track {
+    @apply h-2 w-full overflow-hidden;
+    border-radius: 1px;
+    border: 1px solid var(--color-liseret);
+    background: color-mix(in srgb, var(--color-fond) 50%, transparent);
+  }
+  .progress-track.light {
+    background: color-mix(in srgb, var(--color-fond) 60%, var(--color-surface));
+  }
+  .progress-fill {
+    @apply h-full transition-all;
+    background: var(--color-accent);
+  }
+
+  .icon-chip {
+    border-radius: 1px;
+    @apply flex h-9 w-9 shrink-0 items-center justify-center;
+    border: 1px solid color-mix(in srgb, var(--chip-tint, var(--color-accent)) 55%, transparent);
+    background: color-mix(in srgb, var(--chip-tint, var(--color-accent)) 16%, transparent);
+    color: var(--chip-tint, var(--color-accent));
+  }
+
+  /* Vignette de monument : un calque technique. Fond bleu foncé quadrillé
+     (posé en inline par MonumentModel avec la teinte de rareté), fin cadre. */
+  .card-photo {
+    border-radius: 1px;
+    @apply relative aspect-[3/4] overflow-hidden bg-cover bg-center;
+    background-color: var(--color-fond);
+    border: 1px solid var(--color-liseret);
+  }
+  /* Bandeau de légende (emplacements Farm, sélecteur) : bleu opaque à texte
+     clair, cohérent avec le reste. */
+  .photo-caption {
+    @apply pointer-events-none absolute inset-x-0 bottom-0 px-2 py-1;
+    background: color-mix(in srgb, var(--color-fond) 85%, transparent);
+    border-top: 1px solid var(--color-liseret);
+    color: var(--color-ink);
+  }
+  /* Monument non possédé : tracé "bleu de plan" désaturé, pas un objet fini —
+     il est à relever, pas encore construit. */
+  .card-photo.locked {
+    filter: saturate(0.35) brightness(0.72) contrast(1.05);
+    opacity: 0.62;
+  }
+
+  /* ÉTIQUETTE DE RARETÉ — signature de cette DA. Plus un tampon encreur
+     (identité précédente) mais une COTE : libellé mono, crochet d'angle,
+     couleur de rareté en trait sur fond quasi-transparent. Droite par défaut
+     (un plan ne penche pas). Couleur posée en inline `color` depuis
+     data/rarity.js#RARITY_COLORS (jamais `var(--color-${rarete})` construit —
+     piège tree-shaking Tailwind, CLAUDE.md) ; `currentColor` fait le reste. */
+  .stamp {
+    @apply inline-flex items-center;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 0.18rem 0.4rem;
+    border: 1px solid currentColor;
+    border-radius: 0;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    /* Petit crochet de cotation à gauche, tracé au box-shadow inset. */
+    box-shadow: inset 2px 0 0 currentColor;
+  }
+  /* `.straight` conservée pour compat (les vues l'ajoutent encore) — sans
+     effet ici puisque plus rien ne penche. */
+  .stamp.straight {
+    box-shadow: inset 2px 0 0 currentColor;
+  }
+
+  .pill-soft {
+    @apply inline-flex items-center rounded-sm px-2.5 py-1 text-xs;
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+    border: 1px solid var(--color-liseret);
+    background: transparent;
+    color: var(--color-ink-soft);
+  }
+
+  .card-tile-tilt {
+    transition: transform 0.12s ease;
+  }
+  .card-tile-tilt:active {
+    transform: scale(0.97);
+  }
+
+  .fade-in-up {
+    animation: fade-in-up 0.2s ease-out both;
+  }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fade-in-up {
+      animation: none;
+    }
+  }
+
+  .pack-anticipation {
+    animation: pack-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pack-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .pack-anticipation-glow {
+    border: 2px solid var(--color-legendaire);
+    background: var(--color-surface-soft);
+    animation: anticipation-glow-pulse 0.9s ease-out;
+  }
+  @keyframes anticipation-glow-pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-legendaire) 65%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 22px color-mix(in srgb, var(--color-legendaire) 0%, transparent);
+    }
+  }
+
+  .pull-reveal-basic {
+    animation: fade-in-up 0.25s ease-out both;
+  }
+  .pull-reveal-legendary {
+    animation: pull-shake 0.4s ease-in-out, fade-in-up 0.3s ease-out both;
+  }
+  @keyframes pull-shake {
+    10%,
+    90% {
+      transform: translateX(-1px);
+    }
+    20%,
+    80% {
+      transform: translateX(2px);
+    }
+    30%,
+    50%,
+    70% {
+      transform: translateX(-4px);
+    }
+    40%,
+    60% {
+      transform: translateX(4px);
+    }
+  }
+
+  .legendary-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: var(--color-legendaire);
+    animation: legendary-flash 0.5s ease-out forwards;
+  }
+  @keyframes legendary-flash {
+    from {
+      opacity: 0.5;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  button.panel {
+    transition: transform 0.12s ease;
+  }
+  button.panel:active {
+    transform: scale(0.98);
+  }
+
+  .tab-link {
+    transition: transform 0.12s ease;
+  }
+  .tab-link:active {
+    transform: scale(0.94);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pack-anticipation,
+    .pack-anticipation-glow,
+    .pull-reveal-legendary {
+      animation: none;
+    }
+  }
+}
+
+/* Transition d'écran entre onglets : slide net + fade (cf. App.vue
+   :duration="150"). Hors @layer : classes posées dynamiquement par Vue. */
+.tab-switch-enter-active,
+.tab-switch-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tab-switch-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+.tab-switch-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-switch-enter-active,
+  .tab-switch-leave-active {
+    transition: opacity 0.15s ease;
+  }
+  .tab-switch-enter-from,
+  .tab-switch-leave-to {
+    transform: none;
+  }
+}
