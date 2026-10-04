@@ -162,3 +162,9 @@ Colisée — Poly by Google — CC BY 3.0 (Poly Pizza / Google Poly)
 Arc de Triomphe — Poly by Google — CC BY 3.0 (Poly Pizza / Google Poly)
 Tour de Babel — Thomas de Rivaz — CC BY 3.0 (Poly Pizza / Google Poly)
 ```
+
+
+## Remplacement du 4 octobre 2026
+Les modèles distribués `neuschwanstein.glb` et `parthenon.glb` sont désormais des maquettes schématiques originales générées à partir de primitives géométriques, sans réutilisation des fichiers Fab. Les anciennes lignes ci-dessus documentent les archives de travail uniquement, jamais les modèles distribués.
+
+Les deux nouveaux fichiers géométriques distribués sont mis à disposition sous CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Aucune géométrie ou texture des archives Fab n’a été copiée. Générateur reproductible (sortie identique, SHA-256 vérifiés) : `app/scripts/generate-original-monuments.py`. Les archives `monuments/glb/` ne sont ni copiées par `app/Dockerfile` (seul `app/`) ni référencées par l'application.

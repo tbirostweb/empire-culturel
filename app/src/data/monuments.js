@@ -51,6 +51,7 @@ export const EPOQUE_ICONS = {
 // l'attribution est une OBLIGATION légale. Ces données alimentent l'écran
 // de crédits du Profil ; ne jamais ajouter un monument sans les remplir.
 // `null` = provenance non déterminée (cf. monuments/CREDITS.md), à régler.
+// Neuschwanstein et Parthénon : maquettes originales CC0 (app/scripts/generate-original-monuments.py).
 //
 // L'ORDRE DE CE TABLEAU EST FIGÉ : l'`id` d'un monument est dérivé de son
 // index (`mon_001`...), et ces ids sont persistés dans le localStorage des
@@ -71,12 +72,14 @@ const RAW_MONUMENTS = [
     ['Daqian Dong', PP, 'https://poly.pizza/search/big%20ben']],
   ['Chichen Itza', 'Mexique', 'amerique', 'moyen_age', 'rare', 'chichen-itza.glb',
     ['Bruno Oliveira', PP, 'https://poly.pizza/m/0rEriuH2sVr']],
-  ['Château de Neuschwanstein', 'Allemagne', 'europe', 'moderne', 'rare', 'neuschwanstein.glb', null],
+  ['Château de Neuschwanstein', 'Allemagne', 'europe', 'moderne', 'rare', 'neuschwanstein.glb',
+    ['Maquette originale Birostweb (générée par code)', 'CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/']],
   ['Arc de Triomphe', 'France', 'europe', 'moderne', 'peu_commun', 'arc-de-triomphe.glb',
     ['Poly by Google', PP, 'https://poly.pizza/search/archway']],
   ['Notre-Dame de Paris', 'France', 'europe', 'moyen_age', 'peu_commun', 'notre-dame.glb',
     ['Bruno Oliveira', PP, 'https://poly.pizza/search/cathedral']],
-  ['Parthénon', 'Grèce', 'europe', 'antiquite', 'peu_commun', 'parthenon.glb', null],
+  ['Parthénon', 'Grèce', 'europe', 'antiquite', 'peu_commun', 'parthenon.glb',
+    ['Maquette originale Birostweb (générée par code)', 'CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/']],
   ['Golden Gate Bridge', 'États-Unis', 'amerique', 'contemporain', 'peu_commun', 'golden-gate.glb',
     ['Steren Giannini', PP, 'https://poly.pizza/search/golden%20gate']],
   ['Teotihuacan', 'Mexique', 'amerique', 'antiquite', 'commun', 'teotihuacan.glb',
@@ -108,11 +111,11 @@ const RAW_MONUMENTS = [
   ['Moaï', 'Rapa Nui', 'oceanie', 'moyen_age', 'epique', 'moai.glb',
     ['Museo Nacional de Historia Natural de Chile', 'CC0 1.0', 'https://sketchfab.com/3d-models/moai-paa-paa-6d21b01fbd01478b8942507655b985f1']],
   ['Cathédrale Saint-Basile', 'Russie', 'europe', 'renaissance', 'epique', 'saint-basile.glb',
-    ['Polskaball', 'CC BY 4.0', 'https://sketchfab.com/3d-models/saint-basils-cathedral-fb52c0ba7ab24c43a9c89530be24a695']],
+    ['Polskaball', 'CC BY 4.0', 'https://sketchfab.com/3d-models/saint-basils-cathedral-a0b09745ecfe4cfea590eefcaac1e457']],
   ['Sphinx de Gizeh', 'Égypte', 'afrique', 'antiquite', 'epique', 'sphinx.glb',
     ['Chenzoss', 'CC BY 4.0', 'https://sketchfab.com/3d-models/the-great-sphinx-of-giza-egypt-f169dbe7974648babe327179091e0ee3']],
   ['Machu Picchu', 'Pérou', 'amerique', 'renaissance', 'legendaire', 'machu-picchu.glb',
-    ['Ministerio de Cultura Perú', 'CC BY 4.0', 'https://sketchfab.com/3d-models/machupicchu']],
+    ['Ministerio de Cultura Perú', 'CC BY 4.0', 'https://sketchfab.com/3d-models/machupicchu-d59370ac4a444628b95081f5bb7bbd02']],
   ['Pyramides de Gizeh', 'Égypte', 'afrique', 'antiquite', 'legendaire', 'pyramides-de-gizeh.glb',
     ['Chenzoss', 'CC BY 4.0', 'https://sketchfab.com/3d-models/the-great-pyramid-of-giza-egypt-99bb947b9a9f4884ba249aec1be779eb']],
   ['Statue de la Liberté', 'États-Unis', 'amerique', 'moderne', 'legendaire', 'statue-de-la-liberte.glb',
