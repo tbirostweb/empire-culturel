@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+# Sitemap : À COMPLÉTER avec l'URL de production (domaine inconnu du dépôt).

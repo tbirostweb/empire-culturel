@@ -35,24 +35,30 @@ const LAST_EMAIL_KEY = 'dernierEmail';
 // joueur en clair dans son localStorage l'exposerait bien au-delà de ce jeu.
 // PBKDF2 plutôt qu'un simple SHA-256 pour que le haché ne soit pas
 // attaquable par simple table de correspondance.
-const PBKDF2_ITERATIONS = 150_000;
+// Les profils existants gardent leur nombre d'itérations (`pwd.iter`, absent
+// = 150 000, valeur historique) pour rester vérifiables ; les nouveaux
+// utilisent la valeur courante.
+const LEGACY_PBKDF2_ITERATIONS = 150_000;
+const PBKDF2_ITERATIONS = 600_000;
+export const MIN_PASSWORD_LENGTH = 8;
+const MAX_NAME_LENGTH = 20;
 
 function toHex(buffer) {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function hashPassword(password, saltHex) {
+export async function hashPassword(password, saltHex, iterations = PBKDF2_ITERATIONS) {
   const enc = new TextEncoder();
   const salt = saltHex
     ? Uint8Array.from(saltHex.match(/.{2}/g).map((h) => parseInt(h, 16)))
     : crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     key,
     256,
   );
-  return { hash: toHex(bits), salt: toHex(salt) };
+  return { hash: toHex(bits), salt: toHex(salt), iter: iterations };
 }
 
 export function normalizeEmail(email) {
@@ -78,7 +84,7 @@ export function findByEmail(email) {
 
 export async function verifyPassword(profile, password) {
   if (!profile?.pwd) return true; // profil créé avant l'ajout des mots de passe
-  const { hash } = await hashPassword(password, profile.pwd.salt);
+  const { hash } = await hashPassword(password, profile.pwd.salt, profile.pwd.iter ?? LEGACY_PBKDF2_ITERATIONS);
   return hash === profile.pwd.hash;
 }
 
@@ -86,17 +92,16 @@ function readIndex() {
   try {
     const raw = localStorage.getItem(INDEX_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Données de stockage non fiables (modifiables localement) : on écarte
+    // toute entrée qui n'a pas la forme attendue plutôt que de planter.
+    return parsed.filter((p) => p && typeof p === 'object' && typeof p.id === 'string' && typeof p.nom === 'string');
   } catch {
     // localStorage corrompu ou indisponible (navigation privée sur certains
     // navigateurs) : on repart d'une liste vide plutôt que de planter au
     // démarrage de l'app.
     return [];
   }
-}
-
-function writeIndex(list) {
-  localStorage.setItem(INDEX_KEY, JSON.stringify(list));
 }
 
 export function listProfiles() {
@@ -118,72 +123,147 @@ function snapshotKey(profileId, key) {
 
 // Recopie l'état de jeu courant dans l'espace du profil, puis efface les clés
 // courantes. Appelé avant toute bascule.
-function stashCurrent() {
+// Écritures groupées avec retour arrière : si une écriture échoue en cours de
+// route (quota localStorage dépassé…), toutes les clés déjà touchées
+// retrouvent leur valeur d'origine — jamais d'état à moitié basculé.
+function atomically(fn) {
+  const original = new Map();
+  const remember = (key) => {
+    if (!original.has(key)) original.set(key, localStorage.getItem(key));
+  };
+  const tx = {
+    set(key, value) {
+      remember(key);
+      localStorage.setItem(key, value);
+    },
+    del(key) {
+      remember(key);
+      localStorage.removeItem(key);
+    },
+  };
+  try {
+    return fn(tx);
+  } catch (err) {
+    for (const [key, value] of original) {
+      try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      } catch {
+        /* restauration au mieux : on continue pour rétablir le maximum de clés */
+      }
+    }
+    throw err;
+  }
+}
+
+// Recopie l'état de jeu courant dans l'espace du profil (toutes les copies
+// d'abord), puis efface les clés courantes. Appelé avant toute bascule.
+function stashCurrent(tx) {
   const id = activeProfileId();
   if (!id) return;
   for (const key of GAME_KEYS) {
     const value = localStorage.getItem(key);
-    if (value === null) localStorage.removeItem(snapshotKey(id, key));
-    else localStorage.setItem(snapshotKey(id, key), value);
-    localStorage.removeItem(key);
+    if (value === null) tx.del(snapshotKey(id, key));
+    else tx.set(snapshotKey(id, key), value);
   }
+  for (const key of GAME_KEYS) tx.del(key);
 }
 
 // Restaure l'état d'un profil dans les clés que lisent les stores.
-function restore(profileId) {
+function restore(tx, profileId) {
   for (const key of GAME_KEYS) {
     const value = localStorage.getItem(snapshotKey(profileId, key));
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
+    if (value === null) tx.del(key);
+    else tx.set(key, value);
   }
 }
+
+function newProfileId() {
+  if (globalThis.crypto?.randomUUID) return `p${globalThis.crypto.randomUUID()}`;
+  return `p${Date.now().toString(36)}${[...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Verrou : une seule création de profil à la fois (double clic / double
+// soumission pendant la dérivation asynchrone du mot de passe).
+let creating = false;
 
 export async function createProfile({ nom, email, motDePasse }) {
   const trimmed = String(nom ?? '').trim();
   if (!trimmed) return null;
-  stashCurrent();
-  const profile = {
-    id: `p${Date.now().toString(36)}`,
-    nom: trimmed.slice(0, 20),
-    email: normalizeEmail(email),
-    cree: Date.now(),
-  };
-  if (motDePasse) profile.pwd = await hashPassword(motDePasse);
-  writeIndex([...readIndex(), profile]);
-  // Nouveau profil = aucune sauvegarde à restaurer : les clés de jeu ont déjà
-  // été effacées par `stashCurrent`, les stores repartiront de leurs valeurs
-  // par défaut au rechargement.
-  localStorage.setItem(ACTIVE_KEY, profile.id);
-  if (profile.email) localStorage.setItem(LAST_EMAIL_KEY, profile.email);
-  return profile;
+  if (creating) return null;
+  creating = true;
+  try {
+    // Dérivation (asynchrone) AVANT toute écriture : si elle échoue, l'état
+    // courant n'a pas été touché.
+    const pwd = motDePasse ? await hashPassword(motDePasse) : null;
+    const normalized = normalizeEmail(email);
+    if (normalized && findByEmail(normalized)) throw new Error('email-existant');
+    const profile = {
+      id: newProfileId(),
+      nom: trimmed.slice(0, MAX_NAME_LENGTH),
+      email: normalized,
+      cree: Date.now(),
+    };
+    if (pwd) profile.pwd = pwd;
+    // Section synchrone et atomique : sauvegarde de l'ancien jeu, index,
+    // profil actif. Nouveau profil = aucune sauvegarde à restaurer : les clés
+    // de jeu sont effacées, les stores repartent de leurs valeurs par défaut
+    // au rechargement.
+    atomically((tx) => {
+      stashCurrent(tx);
+      tx.set(INDEX_KEY, JSON.stringify([...readIndex(), profile]));
+      tx.set(ACTIVE_KEY, profile.id);
+      if (profile.email) tx.set(LAST_EMAIL_KEY, profile.email);
+    });
+    return profile;
+  } finally {
+    creating = false;
+  }
 }
 
 export function switchProfile(profileId) {
   if (profileId === activeProfileId()) return;
-  stashCurrent();
-  restore(profileId);
-  localStorage.setItem(ACTIVE_KEY, profileId);
   const p = readIndex().find((x) => x.id === profileId);
-  if (p?.email) localStorage.setItem(LAST_EMAIL_KEY, p.email);
+  if (!p) throw new Error('profil-inconnu');
+  atomically((tx) => {
+    stashCurrent(tx);
+    restore(tx, profileId);
+    tx.set(ACTIVE_KEY, profileId);
+    if (p.email) tx.set(LAST_EMAIL_KEY, p.email);
+  });
 }
 
 // Déconnexion : on range la partie en cours et on retire le profil actif.
 // Rien n'est supprimé — se reconnecter au même profil retrouve la partie.
 export function logout() {
-  stashCurrent();
-  localStorage.removeItem(ACTIVE_KEY);
+  atomically((tx) => {
+    stashCurrent(tx);
+    tx.del(ACTIVE_KEY);
+  });
 }
 
 // Suppression définitive d'un profil ET de sa sauvegarde.
 export function deleteProfile(profileId) {
+  const target = readIndex().find((p) => p.id === profileId);
   const wasActive = profileId === activeProfileId();
-  if (wasActive) {
-    // Ne pas passer par `stashCurrent` : on s'apprête justement à tout jeter.
-    for (const key of GAME_KEYS) localStorage.removeItem(key);
-    localStorage.removeItem(ACTIVE_KEY);
-  }
-  for (const key of GAME_KEYS) localStorage.removeItem(snapshotKey(profileId, key));
-  writeIndex(readIndex().filter((p) => p.id !== profileId));
+  atomically((tx) => {
+    // L'index est réécrit en premier : en cas d'échec, tout est annulé.
+    tx.set(INDEX_KEY, JSON.stringify(readIndex().filter((p) => p.id !== profileId)));
+    if (wasActive) {
+      // Ne pas passer par `stashCurrent` : on s'apprête justement à tout jeter.
+      for (const key of GAME_KEYS) tx.del(key);
+      tx.del(ACTIVE_KEY);
+    }
+    for (const key of GAME_KEYS) tx.del(snapshotKey(profileId, key));
+    // Minimisation : le dernier email mémorisé est une donnée personnelle
+    // résiduelle ; on l'efface s'il appartenait au profil supprimé (ou s'il
+    // ne reste plus aucun profil).
+    const remaining = readIndex().filter((p) => p.id !== profileId);
+    const last = localStorage.getItem(LAST_EMAIL_KEY);
+    if (last !== null && (remaining.length === 0 || (target && normalizeEmail(target.email) === last))) {
+      tx.del(LAST_EMAIL_KEY);
+    }
+  });
 }
 
 // Reprise des parties d'avant l'existence des profils : si des clés de jeu
@@ -199,8 +279,10 @@ export function adoptLegacySaveIfAny() {
   } catch {
     /* pseudo illisible : le nom par défaut fera l'affaire */
   }
-  const profile = { id: `p${Date.now().toString(36)}`, nom, cree: Date.now() };
-  writeIndex([profile]);
-  localStorage.setItem(ACTIVE_KEY, profile.id);
+  const profile = { id: newProfileId(), nom: String(nom).slice(0, MAX_NAME_LENGTH), cree: Date.now() };
+  atomically((tx) => {
+    tx.set(INDEX_KEY, JSON.stringify([profile]));
+    tx.set(ACTIVE_KEY, profile.id);
+  });
   return profile;
 }

@@ -22,6 +22,7 @@ import {
   verifyPassword,
   isEmailValid,
   lastEmail,
+  MIN_PASSWORD_LENGTH,
 } from '../../utils/profiles.js';
 import AppIcon from '../icons/AppIcon.vue';
 
@@ -49,6 +50,7 @@ function bascule() {
 }
 
 async function connecter() {
+  if (enCours.value) return;
   erreur.value = '';
   const profil = findByEmail(email.value);
   if (!profil) {
@@ -63,12 +65,15 @@ async function connecter() {
     }
     switchProfile(profil.id);
     emit('ready');
+  } catch {
+    erreur.value = "Impossible de charger la partie (stockage indisponible). Rien n'a été modifié.";
   } finally {
     enCours.value = false;
   }
 }
 
 async function inscrire() {
+  if (enCours.value) return;
   erreur.value = '';
   if (!nom.value.trim()) {
     erreur.value = 'Choisis un nom de collectionneur.';
@@ -82,14 +87,20 @@ async function inscrire() {
     erreur.value = 'Une partie existe déjà avec cet email sur cet appareil.';
     return;
   }
-  if (motDePasse.value.length < 4) {
-    erreur.value = 'Le mot de passe doit faire au moins 4 caractères.';
+  if (motDePasse.value.length < MIN_PASSWORD_LENGTH) {
+    erreur.value = `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`;
     return;
   }
   enCours.value = true;
   try {
-    await createProfile({ nom: nom.value, email: email.value, motDePasse: motDePasse.value });
+    const profil = await createProfile({ nom: nom.value, email: email.value, motDePasse: motDePasse.value });
+    if (!profil) return; // création déjà en cours : on ne fait rien de plus
     emit('ready');
+  } catch (err) {
+    erreur.value =
+      err?.message === 'email-existant'
+        ? 'Une partie existe déjà avec cet email sur cet appareil.'
+        : "Impossible d'enregistrer la partie (stockage plein ou indisponible). Ta partie actuelle n'a pas été modifiée.";
   } finally {
     enCours.value = false;
   }
@@ -98,12 +109,21 @@ async function inscrire() {
 // Reprise en un tap pour les parties créées avant l'ajout des mots de passe :
 // leur redemander un mot de passe qu'elles n'ont jamais eu serait une impasse.
 function reprendreSansMdp(id) {
-  switchProfile(id);
-  emit('ready');
+  try {
+    switchProfile(id);
+    emit('ready');
+  } catch {
+    erreur.value = "Impossible de charger la partie (stockage indisponible). Rien n'a été modifié.";
+  }
 }
 
 function supprimer(id) {
-  deleteProfile(id);
+  try {
+    deleteProfile(id);
+  } catch {
+    erreur.value = "Suppression impossible (stockage indisponible). Rien n'a été modifié.";
+    return;
+  }
   profiles.value = listProfiles();
   confirmDelete.value = null;
   if (profiles.value.length === 0) mode.value = 'inscription';
@@ -149,9 +169,9 @@ const sansMotDePasse = computed(() => profiles.value.filter((p) => !p.pwd));
           />
         </label>
 
-        <p v-if="erreur" class="gate-erreur">{{ erreur }}</p>
+        <p v-if="erreur" class="gate-erreur" role="alert">{{ erreur }}</p>
 
-        <button type="submit" class="btn-primary w-full" :disabled="enCours">
+        <button type="submit" class="btn-primary w-full" :disabled="enCours" :aria-busy="enCours">
           {{ enCours ? 'Un instant…' : mode === 'connexion' ? 'Se connecter' : 'Créer ma partie' }}
         </button>
       </form>
@@ -172,7 +192,7 @@ const sansMotDePasse = computed(() => profiles.value.filter((p) => !p.pwd));
               <AppIcon name="chevron-right" class="h-4 w-4 shrink-0 text-ink-faint" />
             </button>
             <button type="button" class="gate-delete" :aria-label="`Supprimer ${p.nom}`" @click="confirmDelete = confirmDelete === p.id ? null : p.id">
-              <AppIcon name="close" class="h-3.5 w-3.5" />
+              <AppIcon name="close" class="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             <p v-if="confirmDelete === p.id" class="gate-confirm">
               Supprimer « {{ p.nom }} » et sa progression ?

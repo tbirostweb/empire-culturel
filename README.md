@@ -71,9 +71,15 @@ avec Xcode complet.
 
 App 100% statique, sans variable d'environnement : type **Dockerfile**
 (`app/Dockerfile`), build depuis la racine du monorepo (build path `/`).
+Le conteneur tourne en utilisateur non privilégié (UID 101) et écoute sur le
+port **8080** (à renseigner dans Dokploy ; healthcheck sur ce port). Réglages
+Dokploy conseillés : système de fichiers en lecture seule avec `/tmp` en tmpfs,
+suppression des capabilities, limites CPU/RAM, redémarrage automatique.
+
+Tests : `npm run test:app` (profils/stockage, cache SW, en-têtes, a11y statique).
 
 ```bash
-curl https://ton-domaine/   # doit répondre le HTML de l'app
+curl -sSI https://ton-domaine/   # 200 + en-têtes de sécurité ; /chemin-inconnu => 404
 ```
 
 `docker-compose.yml` n'existe plus (plus de base de données à faire tourner

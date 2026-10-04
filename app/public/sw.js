@@ -1,8 +1,13 @@
-// Service worker minimal : cache les fichiers statiques de l'app (shell),
-// ne touche jamais aux requêtes vers l'API (autre origine — carte-api.* —
-// donc déjà exclues naturellement par le test d'origine ci-dessous). Les
-// soldes/comptes doivent toujours venir du serveur, jamais du cache.
-const CACHE_NAME = 'jeu-pas-v2';
+// Service worker minimal : cache les fichiers statiques de l'app (shell) ;
+// les requêtes d'autres origines ne sont jamais interceptées. Aucune donnée de
+// jeu n'est en cache : elle vit dans le localStorage, que ce SW ne touche pas
+// (une mise à jour du SW ne peut donc pas faire perdre de progression).
+//
+// Version du cache : à incrémenter quand la stratégie change. Les fichiers
+// /assets/* sont hashés (cache-first sûr) ; tout le reste (modèles 3D,
+// manifest, icônes — noms stables) passe par réseau d'abord, cache en secours.
+const CACHE_PREFIX = 'empire-culturel-';
+const CACHE_NAME = `${CACHE_PREFIX}v3`;
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -12,7 +17,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))),
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map((k) => caches.delete(k)))),
   );
   self.clients.claim();
 });
@@ -44,9 +49,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets statiques nommés avec un hash de contenu (ex. index-abc123.js) :
-  // un cache-first est sûr ici, une nouvelle version a toujours un nom de
-  // fichier différent, donc jamais de staleness possible sur ces requêtes.
+  // Ressources à nom stable (modèles 3D, manifest, icônes) : réseau d'abord
+  // pour refléter le dernier déploiement, cache en secours hors-ligne.
+  if (!url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request)),
+    );
+    return;
+  }
+
+  // Assets nommés avec un hash de contenu (ex. /assets/index-abc123.js) :
+  // cache-first est sûr, une nouvelle version a toujours un nom différent.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;

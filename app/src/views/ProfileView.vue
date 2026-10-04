@@ -99,12 +99,12 @@ function deleteAccount() {
         <div class="min-w-0 flex-1">
           <div v-if="!editingPseudo" class="flex items-center gap-2">
             <p class="truncate font-display text-lg font-bold">{{ player.pseudo }}</p>
-            <button type="button" @click="editingPseudo = true">
-              <AppIcon name="pencil" class="h-4 w-4 text-ink-soft" />
+            <button type="button" aria-label="Modifier le pseudo" @click="editingPseudo = true">
+              <AppIcon name="pencil" class="h-4 w-4 text-ink-soft" aria-hidden="true" />
             </button>
           </div>
           <div v-else class="flex items-center gap-2">
-            <input v-model="pseudoDraft" class="input py-1.5 text-sm text-ink" maxlength="20" />
+            <input v-model="pseudoDraft" class="input py-1.5 text-sm text-ink" maxlength="20" aria-label="Pseudo" />
             <button type="button" class="btn-primary px-3 py-1.5 text-xs" @click="savePseudo">OK</button>
           </div>
           <p class="tabular text-xs text-ink-soft">Prestige {{ prestige.count }} · Rang saison #{{ rankings.seasonRank }}</p>

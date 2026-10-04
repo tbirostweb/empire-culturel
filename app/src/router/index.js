@@ -6,6 +6,7 @@ import ExpeditionsView from '../views/ExpeditionsView.vue';
 import TreesView from '../views/TreesView.vue';
 import RankingsView from '../views/RankingsView.vue';
 import ProfileView from '../views/ProfileView.vue';
+import NotFoundView from '../views/NotFoundView.vue';
 
 // Historique hash : app 100% client-only (pas de backend, pas d'auth), donc
 // pas de guard de navigation.
@@ -17,6 +18,7 @@ const routes = [
   { path: '/arbre', name: 'trees', component: TreesView },
   { path: '/classement', name: 'rankings', component: RankingsView },
   { path: '/profil', name: 'profile', component: ProfileView },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
 ];
 
 export const router = createRouter({
